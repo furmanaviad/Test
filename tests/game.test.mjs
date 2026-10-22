@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isCorrectPlacement, createGame, place, nextTurn, skipCard, awardToken, availableClues } from '../js/game.js';
+import { isCorrectPlacement, createGame, place, nextTurn, skipCard, awardToken, availableClues, fallbackClue } from '../js/game.js';
 
 const card = (id, year, extra = {}) => ({ id, title: id, year, clues: { plot: 'p' }, ...extra });
 const tl = [card('a', 1970), card('b', 1990), card('c', 2010)];
@@ -68,4 +68,20 @@ test('availableClues only lists what a card has', () => {
   assert.deepEqual(availableClues({ clues: { quote: 'q', plot: 'p' } }), ['quote', 'plot']);
   assert.deepEqual(availableClues({ clues: {}, wiki: 'Jaws_(film)' }), ['still']);
   assert.deepEqual(availableClues({ clues: { trailer: { youtubeId: 'x' } } }), ['trailer']);
+});
+
+test('fallbackClue prefers non-video clues and skips failed ones', () => {
+  const c = { clues: { trailer: { youtubeId: 'x' }, theme: { youtubeId: 'y' }, plot: 'p', quote: 'q' } };
+  assert.equal(fallbackClue(c, new Set(['trailer'])), 'quote');
+  assert.equal(fallbackClue(c, new Set(['trailer', 'quote'])), 'plot');
+  const videoOnly = { clues: { trailer: { youtubeId: 'x' }, theme: { youtubeId: 'y' } } };
+  assert.equal(fallbackClue(videoOnly, new Set(['trailer'])), 'theme');
+  assert.equal(fallbackClue(videoOnly, new Set(['trailer', 'theme'])), null);
+});
+
+test('fallbackClue prefers text over a still, and a still over video', () => {
+  const c = { wiki: 'X', clues: { trailer: { youtubeId: 'x' }, plot: 'p', quote: 'q' } };
+  assert.equal(fallbackClue(c, new Set(['trailer'])), 'quote');
+  assert.equal(fallbackClue(c, new Set(['trailer', 'quote', 'plot'])), 'still');
+  assert.equal(fallbackClue({ clues: { trailer: { youtubeId: 'x' } } }, new Set()), 'trailer');
 });

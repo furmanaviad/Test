@@ -1,6 +1,6 @@
 import { h, loadTitles, typeLabel } from './dom.js';
-import { createGame, place, nextTurn, skipCard, awardToken, availableClues } from './game.js';
-import { renderClue, CLUE_LABELS } from './clues.js';
+import { createGame, place, nextTurn, skipCard, awardToken, availableClues, fallbackClue } from './game.js';
+import { renderClue, pauseClue, stopClue, CLUE_LABELS } from './clues.js';
 import { viewCard } from './card.js';
 
 const app = document.getElementById('app');
@@ -10,6 +10,7 @@ let settings = { names: ['Player 1', 'Player 2'], target: 5, mode: 'random' };
 // ---------- setup ----------
 
 function showSetup() {
+  stopClue();
   const names = h('div', { class: 'names' });
   const renderNames = () => names.replaceChildren(...settings.names.map((n, i) =>
     h('input', { value: n, 'aria-label': `Player ${i + 1} name`, oninput: e => { settings.names[i] = e.target.value; } })));
@@ -78,9 +79,15 @@ function showTurn(game) {
   const skip = h('button', { class: 'secondary', disabled: player.tokens < 1 || !game.deck.length, onclick: () => { skipCard(game); showTurn(game); } },
     'Skip clue (1★)');
 
-  const show = t => {
+  const failed = new Set();
+  const show = (t, notice) => {
     [...chooser.children].forEach(b => b.classList.toggle('on', b.dataset.type === t));
-    renderClue(clueBox, game.card, t);
+    renderClue(clueBox, game.card, t, { onError: () => {
+      failed.add(t);
+      const next = fallbackClue(game.card, failed);
+      if (next) show(next, "That video isn't available, so here's another clue.");
+    } });
+    if (notice) clueBox.prepend(h('p', { class: 'hint' }, notice));
   };
   const type = pickType(game.card);
   if (type) show(type);
@@ -95,6 +102,7 @@ function showTurn(game) {
 }
 
 function showReveal(game, { correct, card }) {
+  pauseClue();
   const player = game.players[game.current];
   const gotToken = h('button', { class: 'secondary', onclick: e => { awardToken(game); e.target.disabled = true; e.target.textContent = 'Token awarded ★'; } },
     'They also named the title (+1★)');
@@ -109,6 +117,7 @@ function showReveal(game, { correct, card }) {
 }
 
 function showWinner(game) {
+  stopClue();
   const w = game.players[game.winner];
   app.replaceChildren(h('section', { class: 'winner' },
     h('h1', {}, `${w.name} wins!`), scoreboard(game),
@@ -119,6 +128,7 @@ function showWinner(game) {
 // ---------- routing ----------
 
 function route() {
+  stopClue();
   const m = location.hash.match(/^#card=(.+)$/);
   if (m) viewCard(app, titles, decodeURIComponent(m[1]));
   else showSetup();

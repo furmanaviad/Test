@@ -1,6 +1,6 @@
 import { h, typeLabel } from './dom.js';
-import { availableClues } from './game.js';
-import { renderClue, CLUE_LABELS } from './clues.js';
+import { availableClues, fallbackClue } from './game.js';
+import { renderClue, pauseClue, CLUE_LABELS } from './clues.js';
 
 // Opened by scanning a printed card's QR code. The timeline lives on the physical cards.
 export function viewCard(app, titles, id) {
@@ -16,11 +16,17 @@ export function viewCard(app, titles, id) {
     h('p', { class: 'kind' }, typeLabel(card)));
   const types = availableClues(card);
   const buttons = types.map(t => h('button', { class: 'chip', onclick: () => show(t) }, CLUE_LABELS[t]));
-  const show = t => {
+  const failed = new Set();
+  const show = (t, notice) => {
     buttons.forEach((b, i) => b.classList.toggle('on', types[i] === t));
-    renderClue(clueBox, card, t);
+    renderClue(clueBox, card, t, { onError: () => {
+      failed.add(t);
+      const next = fallbackClue(card, failed);
+      if (next) show(next, "That video isn't available, so here's another clue.");
+    } });
+    if (notice) clueBox.prepend(h('p', { class: 'hint' }, notice));
   };
-  const reveal = h('button', { class: 'primary', onclick: () => { answer.hidden = false; reveal.hidden = true; } }, 'Reveal answer');
+  const reveal = h('button', { class: 'primary', onclick: () => { pauseClue(); answer.hidden = false; reveal.hidden = true; } }, 'Reveal answer');
   app.replaceChildren(h('section', { class: 'card-view' },
     h('p', { class: 'hint' }, 'Pick a clue, then place the card on your timeline.'),
     h('div', { class: 'chips' }, buttons),

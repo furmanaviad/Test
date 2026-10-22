@@ -1,0 +1,14 @@
+{
+  "name": "Screen Timeline",
+  "short_name": "Timeline",
+  "description": "Place movies and TV shows on a timeline.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fafaf7",
+  "theme_color": "#d6336c",
+  "icons": [
+    { "src": "assets/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

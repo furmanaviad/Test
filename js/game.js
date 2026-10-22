@@ -15,6 +15,16 @@ export function availableClues(card) {
   return CLUE_TYPES.filter(t => (t === 'still' ? c.still || card.wiki : c[t]));
 }
 
+// Fallback order when a clue can't be shown: text always works, a still needs a network
+// fetch, and a video that won't embed is likely to fail again.
+const FALLBACK_ORDER = ['quote', 'plot', 'still', 'trailer', 'theme'];
+
+// Next-best clue for `card`, skipping the `failed` ones (a Set), or null if none are left.
+export function fallbackClue(card, failed) {
+  const have = availableClues(card).filter(t => !failed.has(t));
+  return FALLBACK_ORDER.find(t => have.includes(t)) ?? null;
+}
+
 // `index` is the gap the card is placed in: 0 = before the first card, n = after the last.
 // A year equal to a neighbour's year counts as correct.
 export function isCorrectPlacement(timeline, index, year) {

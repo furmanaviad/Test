@@ -30,14 +30,29 @@ node scripts/check-data.mjs --online  # also check YouTube IDs and Wikipedia pos
 
 The setup screen lets you use one clue type every turn, a random one, or let the player choose, which is useful for comparing how each feels.
 
-**Trailer and theme clues are not filled in yet.** Add them per title in `data/titles.json`:
+**Trailer and theme clues have no videos yet.** Add them per title in `data/titles.json`:
 
 ```json
 "trailer": { "youtubeId": "VIDEO_ID", "start": 30, "end": 60 },
 "theme":   { "youtubeId": "VIDEO_ID", "start": 0 }
 ```
 
-Run `node scripts/check-data.mjs --online` afterwards to confirm the IDs exist. Cards only offer the clue types they have.
+Run `node scripts/check-data.mjs --online` afterwards: it fails on IDs that are removed or have embedding disabled (YouTube's oEmbed answers 401/404 for those). Cards only offer the clue types they have.
+
+On iPhone, Safari only plays media after a tap, so video clues show a **Tap to play** button and never autoplay. If a video can't be played (removed, embedding disabled, or YouTube unreachable), the game shows a notice and switches to another clue the card has, preferring quote, then plot, then still.
+
+## Play on iPhone
+
+The site is deployed to GitHub Pages by `.github/workflows/pages.yml` on every push to `claude/screen-timeline-poc`: https://furmanaviad.github.io/Test/
+
+If the first deploy fails at "configure-pages", open the repo's Settings → Pages and set **Source** to **GitHub Actions**, then re-run the workflow.
+
+To install it like an app: open the URL in Safari, tap Share, then **Add to Home Screen**. Things worth checking on the phone:
+
+- Tap to play starts trailer and theme audio; the ringer switch may mute it.
+- The trailer's top and bottom bars hide on-screen titles; note any trailer that still gives the title away.
+- A scanned QR card opens its clue.
+- Layout fits at your phone's width with no sideways scrolling.
 
 ## Printable cards
 
