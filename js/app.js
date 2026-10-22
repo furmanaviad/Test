@@ -1,13 +1,45 @@
-import { h, loadTitles, typeLabel } from './dom.js';
+import { h, loadTitles, typeLabel, infoLine } from './dom.js';
 import { createGame, place, nextTurn, skipCard, awardToken, availableClues, fallbackClue, titleMatches } from './game.js';
-import { renderClue, pauseClue, stopClue, clueInfo, CLUE_LABELS } from './clues.js';
+import { renderClue, pauseClue, stopClue, clueInfo, failureNotice, CLUE_LABELS } from './clues.js';
+import * as spotify from './spotify.js';
 import { viewCard } from './card.js';
 
 const app = document.getElementById('app');
 let titles = [];
 let settings = { names: ['Player 1', 'Player 2'], target: 5, mode: 'random' };
+let loginResult = null;
+
+// What clue types depend on right now.
+const features = () => ({ spotify: spotify.isConnected() });
 
 // ---------- setup ----------
+
+function spotifyPanel() {
+  const box = h('div', { class: 'spotify' });
+  const render = () => {
+    if (spotify.isConnected()) {
+      box.replaceChildren(
+        h('p', { class: 'named' }, '✓ Spotify connected'),
+        h('p', { class: 'hint' }, "Theme songs play in your Spotify app. Keep it open on this phone, and don't peek at it during a turn."),
+        h('button', { class: 'secondary', onclick: () => { spotify.disconnect(); render(); } }, 'Disconnect Spotify'));
+      return;
+    }
+    const id = h('input', { value: spotify.clientId() ?? '', placeholder: 'Spotify Client ID', 'aria-label': 'Spotify Client ID',
+      autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false' });
+    box.replaceChildren(
+      h('p', { class: 'hint' }, 'Optional. Needs Spotify Premium and a free app from developer.spotify.com/dashboard. Register this exact redirect URI there, and add each player under User management:'),
+      h('p', {}, h('code', {}, spotify.redirectUri())),
+      id,
+      h('button', { class: 'secondary', onclick: async () => {
+        if (!id.value.trim()) { id.focus(); return; }
+        spotify.setClientId(id.value);
+        await spotify.connect();
+      } }, 'Connect Spotify'),
+      h('p', { class: 'hint' }, 'Connecting works best in a normal Safari tab.'));
+  };
+  render();
+  return box;
+}
 
 function showSetup() {
   stopClue();
@@ -31,10 +63,15 @@ function showSetup() {
   const mode = h('select', { 'aria-label': 'Clue mode', onchange: e => { settings.mode = e.target.value; } },
     modes.map(([k, v]) => h('option', { value: k, selected: k === settings.mode }, v)));
 
+  const login = loginResult && h('p', { class: loginResult.error ? 'error' : 'named' }, loginResult.error ?? '✓ Spotify connected');
+  loginResult = null;
+
   app.replaceChildren(h('section', { class: 'setup' },
     h('h1', {}, 'Movies & TV, in order'),
     h('p', {}, 'Get the clue, then place the title where it belongs on your timeline by release year (first air date for TV).'),
     count, names, target, mode,
+    login,
+    h('details', { open: Boolean(login) }, h('summary', {}, 'Theme songs with Spotify'), spotifyPanel()),
     h('button', { class: 'primary', onclick: startGame }, 'Start game'),
     h('p', { class: 'hint' }, `${titles.length} titles loaded.`)));
 }
@@ -49,7 +86,7 @@ function startGame() {
 
 // Picks a clue type for the card, or null if the player must choose.
 function pickType(card) {
-  const types = availableClues(card);
+  const types = availableClues(card, features());
   if (settings.mode === 'choice') return null;
   if (settings.mode === 'random') return types[Math.floor(Math.random() * types.length)];
   // A fixed mode falls back to a plot hint if this card lacks that clue.
@@ -82,16 +119,16 @@ function showTurn(game) {
   const failed = new Set();
   const show = (t, notice) => {
     [...chooser.children].forEach(b => b.classList.toggle('on', b.dataset.type === t));
-    renderClue(clueBox, game.card, t, { onError: () => {
+    renderClue(clueBox, game.card, t, { onError: reason => {
       failed.add(t);
-      const next = fallbackClue(game.card, failed);
-      if (next) show(next, "That video isn't available, so here's another clue.");
+      const next = fallbackClue(game.card, failed, features());
+      if (next) show(next, failureNotice(reason));
     } });
     if (notice) clueBox.prepend(h('p', { class: 'hint' }, notice));
   };
   const type = pickType(game.card);
   if (type) show(type);
-  else chooser.append(...availableClues(game.card).map(t =>
+  else chooser.append(...availableClues(game.card, features()).map(t =>
     h('button', { class: 'chip', 'data-type': t, onclick: () => show(t) }, CLUE_LABELS[t])));
 
   const guess = h('input', { class: 'guess', type: 'text', placeholder: 'Know the title? Type it here for a ★',
@@ -122,7 +159,7 @@ function showReveal(game, { correct, card }, guess = '') {
       h('h3', {}, card.title), h('p', { class: 'year' }, String(card.year)), h('p', { class: 'kind' }, typeLabel(card))),
     h('p', {}, correct ? `${player.name} keeps the card.` : 'The card is discarded.'),
     guessNote,
-    info && h('p', { class: 'hint' }, '♪ ', info.url ? h('a', { href: info.url, target: '_blank', rel: 'noopener' }, info.text) : info.text),
+    info && infoLine(info),
     gotToken,
     h('button', { class: 'primary', onclick: () => { nextTurn(game); showTurn(game); } },
       game.winner !== null ? 'See result' : 'Next player')));
@@ -147,5 +184,5 @@ function route() {
 }
 
 addEventListener('hashchange', route);
-loadTitles().then(t => { titles = t; route(); })
+Promise.all([loadTitles(), spotify.completeLogin()]).then(([t, login]) => { titles = t; loginResult = login; route(); })
   .catch(err => app.replaceChildren(h('p', { class: 'error' }, err.message)));

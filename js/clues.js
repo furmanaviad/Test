@@ -1,4 +1,4 @@
-import { lookupPreview } from './itunes.js';
+import * as spotify from './spotify.js';
 
 export const CLUE_LABELS = {
   trailer: 'Trailer',
@@ -115,72 +115,111 @@ function videoClue(card, type, { onError } = {}) {
   };
 }
 
-// ---------- theme music from an Apple Music preview ----------
+// ---------- theme music, played in the player's own Spotify app ----------
 
-// Same tap-to-play contract as video: the lookup runs up front and the tap calls play() directly.
-function audioClue(card, { onError } = {}) {
+const DEFAULT_SNIPPET_SECONDS = 30;
+
+// Spotify's app does the playing; this page finds the track up front and remote-controls it on a tap.
+function spotifyClue(card, { onError } = {}) {
   const clue = card.clues.theme;
+  const startMs = (clue.start ?? 0) * 1000;
+  const snippetMs = (clue.seconds ?? DEFAULT_SNIPPET_SECONDS) * 1000;
   const box = el('div', 'clue clue-theme');
-  const button = el('button', 'play big', 'Loading…');
+  const button = el('button', 'play big', 'Finding the song…');
   button.disabled = true;
-  const credit = el('div', 'credit', '♪ Apple Music preview');
-  box.append(el('div', 'cover cover-full'), button, credit);
+  const note = el('div', 'credit', '♪ Plays in your Spotify app');
+  box.append(el('div', 'cover cover-full'), button, note);
 
-  const audio = new Audio();
-  audio.preload = 'auto';
   let dead = false;
+  let track = null;
   let playing = false;
-  let ended = false;
-  let hit = null;
+  let finished = false;
+  let playedMs = 0;
+  let startedAt = 0;
+  let timer = null;
 
+  const setButton = text => {
+    button.className = `play ${playing ? 'mini' : 'big'}`;
+    button.textContent = text ?? (playing ? '❚❚' : finished ? '↻ Replay' : '▶ Tap to play');
+  };
+  const stopTimer = () => { clearTimeout(timer); timer = null; };
+  const settle = () => {
+    if (playing) playedMs += performance.now() - startedAt;
+    playing = false;
+    stopTimer();
+  };
   const fail = reason => {
     if (dead) return;
+    settle();
     button.disabled = true;
     button.className = 'play big';
-    button.textContent = 'Preview unavailable';
+    button.textContent = 'Song unavailable';
     onError?.(reason);
   };
-  const setButton = () => {
-    button.className = `play ${playing ? 'mini' : 'big'}`;
-    button.textContent = playing ? '❚❚' : ended ? '↻ Replay' : '▶ Tap to play';
+
+  const start = async () => {
+    if (finished) { playedMs = 0; finished = false; }
+    button.disabled = true;
+    try {
+      await spotify.play(track.uri, startMs + playedMs);
+    } catch (err) {
+      if (dead) return;
+      button.disabled = false;
+      if (err.code === 'no-device') {
+        setButton('Open Spotify, play any song, then tap here');
+        note.replaceChildren(el('a', '', 'Open Spotify'));
+        note.firstChild.href = 'https://open.spotify.com/';
+        return;
+      }
+      fail(err.code);
+      return;
+    }
+    if (dead) { spotify.pause().catch(() => {}); return; }
+    playing = true;
+    startedAt = performance.now();
+    button.disabled = false;
+    setButton();
+    timer = setTimeout(() => {
+      settle();
+      finished = true;
+      playedMs = 0;
+      spotify.pause().catch(() => {});
+      setButton();
+    }, Math.max(0, snippetMs - playedMs));
   };
 
   button.addEventListener('click', () => {
-    if (playing) { audio.pause(); return; }
-    if (ended) audio.currentTime = 0;
-    audio.play().catch(() => fail('play'));
-  });
-  audio.addEventListener('play', () => { playing = true; ended = false; setButton(); });
-  audio.addEventListener('pause', () => { playing = false; setButton(); });
-  audio.addEventListener('ended', () => { playing = false; ended = true; setButton(); });
-  audio.addEventListener('error', () => fail('audio'));
-
-  lookupPreview(clue).then(result => {
-    if (dead) return;
-    hit = result;
-    audio.src = result.previewUrl;
-    // Apple asks for previews to sit next to a link back to the store.
-    if (result.trackViewUrl) {
-      const link = el('a', '', '♪ Apple Music preview');
-      link.href = result.trackViewUrl;
-      link.target = '_blank';
-      link.rel = 'noopener';
-      credit.replaceChildren(link);
+    if (!track) return;
+    if (playing) {
+      settle();
+      setButton();
+      spotify.pause().catch(() => {});
+    } else {
+      start();
     }
+  });
+
+  spotify.findTrack(clue).then(found => {
+    if (dead) return;
+    track = found;
     button.disabled = false;
     setButton();
-  }).catch(() => fail('lookup'));
+  }).catch(err => fail(err.code ?? 'network'));
 
   return {
     node: box,
-    pause() { audio.pause(); },
-    // Shown after the reveal, so it can name the song without giving the answer away.
-    info: () => hit && { text: `${hit.trackName} – ${hit.artistName}`, url: hit.trackViewUrl },
+    pause() { if (playing) { settle(); setButton(); spotify.pause().catch(() => {}); } },
+    // Shown after the reveal, so the song can be named without giving the answer away.
+    info: () => track && {
+      text: `${track.name} – ${(track.artists ?? []).map(a => a.name).join(', ')}`,
+      url: track.external_urls?.spotify,
+      linkText: 'Listen on Spotify',
+    },
     destroy() {
       dead = true;
-      audio.pause();
-      audio.removeAttribute('src');
-      audio.load();
+      const wasPlaying = playing;
+      settle();
+      if (wasPlaying) spotify.pause().catch(() => {});
     },
   };
 }
@@ -223,13 +262,24 @@ function textClue(text, tag) {
 
 const RENDERERS = {
   trailer: (card, opts) => videoClue(card, 'trailer', opts),
-  theme: (card, opts) => (card.clues.theme.youtubeId ? videoClue(card, 'theme', opts) : audioClue(card, opts)),
+  theme: (card, opts) => (card.clues.theme.youtubeId ? videoClue(card, 'theme', opts) : spotifyClue(card, opts)),
   still: card => stillClue(card),
   quote: card => textClue(`“${card.clues.quote}”`, 'blockquote'),
   plot: card => textClue(card.clues.plot, 'p'),
 };
 
 // ---------- public API ----------
+
+// Why a clue was swapped for another one, shown above the replacement.
+export function failureNotice(reason) {
+  switch (reason) {
+    case 'premium': return "Spotify Premium is needed to play theme songs, so here's another clue.";
+    case 'auth': return "Spotify needs reconnecting (on the setup screen), so here's another clue.";
+    case 'no-track': return "That song wasn't found on Spotify, so here's another clue.";
+    case 'rate': return "Spotify is busy right now, so here's another clue.";
+    default: return "That video isn't available, so here's another clue.";
+  }
+}
 
 let current = null;
 

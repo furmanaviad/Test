@@ -73,3 +73,7 @@ button.secondary { width: 100%; margin-top: 8px; }
 .named { color: var(--ok); font-weight: 600; margin: 8px 0; }
 .credit { position: absolute; left: 12px; bottom: 8px; z-index: 2; font-size: .75rem; color: #fff; opacity: .85; }
 .credit a { color: inherit; }
+details { margin: 4px 0; }
+summary { cursor: pointer; padding: 10px 0; font-weight: 600; }
+.spotify { display: grid; gap: 8px; }
+code { word-break: break-all; font-size: .85rem; }

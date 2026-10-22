@@ -16,3 +16,9 @@ export async function loadTitles() {
 }
 
 export const typeLabel = card => (card.type === 'tv' ? 'TV show' : 'Movie');
+
+// "♪ Song – Artist · Listen on Spotify", shown after a reveal when the clue was a song.
+export function infoLine(info) {
+  return h('p', { class: 'hint' }, `♪ ${info.text}`,
+    info.url && [' · ', h('a', { href: info.url, target: '_blank', rel: 'noopener' }, info.linkText ?? 'Listen')]);
+}

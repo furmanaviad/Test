@@ -9,10 +9,15 @@ export function shuffle(items, rng = Math.random) {
   return a;
 }
 
-// Clue types a card can offer. A still can come from a local image or a Wikipedia poster.
-export function availableClues(card) {
+// Clue types a card can offer. A still can come from a local image or a Wikipedia poster. A theme
+// given as a Spotify search only counts once Spotify is connected (`features.spotify`).
+export function availableClues(card, features = {}) {
   const c = card.clues || {};
-  return CLUE_TYPES.filter(t => (t === 'still' ? c.still || card.wiki : c[t]));
+  return CLUE_TYPES.filter(t => {
+    if (t === 'still') return c.still || card.wiki;
+    if (t === 'theme') return c.theme && (c.theme.youtubeId || (c.theme.search && features.spotify));
+    return c[t];
+  });
 }
 
 // Fallback order when a clue can't be shown: text always works, a still needs a network
@@ -20,8 +25,8 @@ export function availableClues(card) {
 const FALLBACK_ORDER = ['quote', 'plot', 'still', 'trailer', 'theme'];
 
 // Next-best clue for `card`, skipping the `failed` ones (a Set), or null if none are left.
-export function fallbackClue(card, failed) {
-  const have = availableClues(card).filter(t => !failed.has(t));
+export function fallbackClue(card, failed, features) {
+  const have = availableClues(card, features).filter(t => !failed.has(t));
   return FALLBACK_ORDER.find(t => have.includes(t)) ?? null;
 }
 

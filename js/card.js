@@ -1,6 +1,7 @@
-import { h, typeLabel } from './dom.js';
+import { h, typeLabel, infoLine } from './dom.js';
 import { availableClues, fallbackClue, titleMatches } from './game.js';
-import { renderClue, pauseClue, clueInfo, CLUE_LABELS } from './clues.js';
+import { renderClue, pauseClue, clueInfo, failureNotice, CLUE_LABELS } from './clues.js';
+import * as spotify from './spotify.js';
 
 // Opened by scanning a printed card's QR code. The timeline lives on the physical cards.
 export function viewCard(app, titles, id) {
@@ -14,15 +15,16 @@ export function viewCard(app, titles, id) {
     h('h2', {}, card.title),
     h('p', { class: 'year' }, String(card.year)),
     h('p', { class: 'kind' }, typeLabel(card)));
-  const types = availableClues(card);
+  const features = { spotify: spotify.isConnected() };
+  const types = availableClues(card, features);
   const buttons = types.map(t => h('button', { class: 'chip', onclick: () => show(t) }, CLUE_LABELS[t]));
   const failed = new Set();
   const show = (t, notice) => {
     buttons.forEach((b, i) => b.classList.toggle('on', types[i] === t));
-    renderClue(clueBox, card, t, { onError: () => {
+    renderClue(clueBox, card, t, { onError: reason => {
       failed.add(t);
-      const next = fallbackClue(card, failed);
-      if (next) show(next, "That video isn't available, so here's another clue.");
+      const next = fallbackClue(card, failed, features);
+      if (next) show(next, failureNotice(reason));
     } });
     if (notice) clueBox.prepend(h('p', { class: 'hint' }, notice));
   };
@@ -33,7 +35,7 @@ export function viewCard(app, titles, id) {
   const reveal = h('button', { class: 'primary', onclick: () => {
     pauseClue();
     const info = clueInfo();
-    if (info) answer.append(h('p', { class: 'hint' }, '♪ ', info.url ? h('a', { href: info.url, target: '_blank', rel: 'noopener' }, info.text) : info.text));
+    if (info) answer.append(infoLine(info));
     const typed = guess.value.trim();
     if (typed) {
       result.hidden = false;
@@ -45,6 +47,8 @@ export function viewCard(app, titles, id) {
   } }, 'Reveal answer');
   app.replaceChildren(h('section', { class: 'card-view' },
     h('p', { class: 'hint' }, 'Pick a clue, then place the card on your timeline.'),
+    card.clues?.theme?.search && !features.spotify
+      ? h('p', { class: 'hint' }, 'This card has a theme song. ', h('a', { href: './' }, 'Connect Spotify'), ' to hear it.') : null,
     h('div', { class: 'chips' }, buttons),
     clueBox, guess, reveal, result, answer));
   if (types.length) show(types[0]);
