@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isCorrectPlacement, createGame, place, nextTurn, skipCard, awardToken, availableClues, fallbackClue } from '../js/game.js';
+import { isCorrectPlacement, createGame, place, nextTurn, skipCard, awardToken, availableClues, fallbackClue, titleMatches } from '../js/game.js';
 
 const card = (id, year, extra = {}) => ({ id, title: id, year, clues: { plot: 'p' }, ...extra });
 const tl = [card('a', 1970), card('b', 1990), card('c', 2010)];
@@ -84,4 +84,36 @@ test('fallbackClue prefers text over a still, and a still over video', () => {
   assert.equal(fallbackClue(c, new Set(['trailer'])), 'quote');
   assert.equal(fallbackClue(c, new Set(['trailer', 'quote', 'plot'])), 'still');
   assert.equal(fallbackClue({ clues: { trailer: { youtubeId: 'x' } } }, new Set()), 'trailer');
+});
+
+test('titleMatches ignores case, articles, punctuation and parentheticals', () => {
+  const m = (g, title, extra = {}) => titleMatches(g, { title, ...extra });
+  assert.equal(m('jaws', 'Jaws'), true);
+  assert.equal(m('godfather', 'The Godfather'), true);
+  assert.equal(m('THE MATRIX', 'The Matrix'), true);
+  assert.equal(m('mash', 'M*A*S*H'), true);
+  assert.equal(m('the office', 'The Office (US)'), true);
+  assert.equal(m('amelie', 'Amélie'), true);
+  assert.equal(m('  ', 'Jaws'), false);
+  assert.equal(m('', 'Jaws'), false);
+});
+
+test('titleMatches allows small typos but not on short titles or wrong titles', () => {
+  const m = (g, title) => titleMatches(g, { title });
+  assert.equal(m('jurasic park', 'Jurassic Park'), true);
+  assert.equal(m('frends', 'Friends'), true);
+  assert.equal(m('lust', 'Lost'), false);
+  assert.equal(m('jaws 2', 'Jaws'), false);
+  assert.equal(m('cheese', 'Cheers'), false);
+  assert.equal(m('star trek', 'Star Wars'), false);
+  assert.equal(m('Titanic', 'Gladiator'), false);
+});
+
+test('titleMatches accepts aliases', () => {
+  const et = { title: 'E.T. the Extra-Terrestrial', aliases: ['E.T.', 'ET'] };
+  assert.equal(titleMatches('ET', et), true);
+  assert.equal(titleMatches('e.t.', et), true);
+  assert.equal(titleMatches('E.T. the Extra Terrestrial', et), true);
+  assert.equal(titleMatches('Star Wars: A New Hope', { title: 'Star Wars', aliases: ['A New Hope'] }), false);
+  assert.equal(titleMatches('A New Hope', { title: 'Star Wars', aliases: ['A New Hope'] }), true);
 });

@@ -1,5 +1,5 @@
 import { h, loadTitles, typeLabel } from './dom.js';
-import { createGame, place, nextTurn, skipCard, awardToken, availableClues, fallbackClue } from './game.js';
+import { createGame, place, nextTurn, skipCard, awardToken, availableClues, fallbackClue, titleMatches } from './game.js';
 import { renderClue, pauseClue, stopClue, CLUE_LABELS } from './clues.js';
 import { viewCard } from './card.js';
 
@@ -94,23 +94,33 @@ function showTurn(game) {
   else chooser.append(...availableClues(game.card).map(t =>
     h('button', { class: 'chip', 'data-type': t, onclick: () => show(t) }, CLUE_LABELS[t])));
 
+  const guess = h('input', { class: 'guess', type: 'text', placeholder: 'Know the title? Type it here for a ★',
+    'aria-label': 'Guess the title', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off',
+    spellcheck: 'false', enterkeyhint: 'done' });
+
   app.replaceChildren(h('section', { class: 'turn' },
     scoreboard(game),
     h('h2', {}, `${player.name}, where does it go?`),
-    chooser, clueBox, skip,
-    timelineView(game, i => showReveal(game, place(game, i)))));
+    chooser, clueBox, skip, guess,
+    timelineView(game, i => showReveal(game, place(game, i), guess.value.trim()))));
 }
 
-function showReveal(game, { correct, card }) {
+function showReveal(game, { correct, card }, guess = '') {
   pauseClue();
   const player = game.players[game.current];
-  const gotToken = h('button', { class: 'secondary', onclick: e => { awardToken(game); e.target.disabled = true; e.target.textContent = 'Token awarded ★'; } },
-    'They also named the title (+1★)');
+  const named = titleMatches(guess, card);
+  if (named) awardToken(game);
+  const guessNote = named ? h('p', { class: 'named' }, `You named it! +1★`)
+    : guess ? h('p', { class: 'hint' }, `Your guess: “${guess}”`) : null;
+  // Spoken guesses (no typing) still count if the others agree.
+  const gotToken = named ? null : h('button', { class: 'secondary', onclick: e => { awardToken(game); e.target.disabled = true; e.target.textContent = 'Token awarded ★'; } },
+    'They said the title out loud (+1★)');
   app.replaceChildren(h('section', { class: `reveal ${correct ? 'ok' : 'bad'}` },
     h('h2', {}, correct ? 'Correct!' : 'Not quite'),
     h('div', { class: 'answer' },
       h('h3', {}, card.title), h('p', { class: 'year' }, String(card.year)), h('p', { class: 'kind' }, typeLabel(card))),
     h('p', {}, correct ? `${player.name} keeps the card.` : 'The card is discarded.'),
+    guessNote,
     gotToken,
     h('button', { class: 'primary', onclick: () => { nextTurn(game); showTurn(game); } },
       game.winner !== null ? 'See result' : 'Next player')));

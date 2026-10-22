@@ -68,3 +68,6 @@ button.secondary { width: 100%; margin-top: 8px; }
 .answer p { margin: 0; }
 .winner { text-align: center; }
 [hidden] { display: none !important; }
+
+.guess { margin-top: 8px; }
+.named { color: var(--ok); font-weight: 600; margin: 8px 0; }

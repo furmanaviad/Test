@@ -14,6 +14,7 @@ for (const t of titles) {
   if (!t.title) errors.push(`${at} missing title`);
   if (!['movie', 'tv'].includes(t.type)) errors.push(`${at} type must be movie or tv`);
   if (!Number.isInteger(t.year) || t.year < 1880 || t.year > 2100) errors.push(`${at} bad year`);
+  if (t.aliases && !(Array.isArray(t.aliases) && t.aliases.every(a => typeof a === 'string'))) errors.push(`${at} aliases must be an array of strings`);
   const c = t.clues ?? {};
   if (!c.quote && !c.plot && !c.trailer && !c.theme && !c.still && !t.wiki) errors.push(`${at} has no clues`);
   for (const k of ['trailer', 'theme']) {

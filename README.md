@@ -16,7 +16,7 @@ node scripts/check-data.mjs --online  # also check YouTube IDs and Wikipedia pos
 1. Each player starts with one face-up title.
 2. On your turn you get a clue. Tap a `+` gap in your timeline to place the title.
 3. A correct placement keeps the card; a wrong one discards it. Matching years count as correct.
-4. If a player also names the title, give them a ★. Spend one to skip a clue.
+4. Know the title? Type it into the guess box *before* placing the card. A correct guess earns a ★ automatically (case, a leading "The", punctuation and small typos are ignored; short titles must be exact). Someone who said it out loud can still be given a ★ with the button on the reveal screen. Spend a ★ to skip a clue.
 5. First to the chosen number of cards wins. If the deck runs out first, the longest timeline wins.
 
 ## Clue types

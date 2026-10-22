@@ -1,5 +1,5 @@
 import { h, typeLabel } from './dom.js';
-import { availableClues, fallbackClue } from './game.js';
+import { availableClues, fallbackClue, titleMatches } from './game.js';
 import { renderClue, pauseClue, CLUE_LABELS } from './clues.js';
 
 // Opened by scanning a printed card's QR code. The timeline lives on the physical cards.
@@ -26,10 +26,24 @@ export function viewCard(app, titles, id) {
     } });
     if (notice) clueBox.prepend(h('p', { class: 'hint' }, notice));
   };
-  const reveal = h('button', { class: 'primary', onclick: () => { pauseClue(); answer.hidden = false; reveal.hidden = true; } }, 'Reveal answer');
+  const guess = h('input', { class: 'guess', type: 'text', placeholder: 'Know the title? Type it here',
+    'aria-label': 'Guess the title', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off',
+    spellcheck: 'false', enterkeyhint: 'done' });
+  const result = h('p', { class: 'hint', hidden: true });
+  const reveal = h('button', { class: 'primary', onclick: () => {
+    pauseClue();
+    const typed = guess.value.trim();
+    if (typed) {
+      result.hidden = false;
+      result.className = titleMatches(typed, card) ? 'named' : 'hint';
+      result.textContent = titleMatches(typed, card) ? 'You named it!' : `Your guess: “${typed}”`;
+    }
+    answer.hidden = false;
+    reveal.hidden = true;
+  } }, 'Reveal answer');
   app.replaceChildren(h('section', { class: 'card-view' },
     h('p', { class: 'hint' }, 'Pick a clue, then place the card on your timeline.'),
     h('div', { class: 'chips' }, buttons),
-    clueBox, reveal, answer));
+    clueBox, guess, reveal, result, answer));
   if (types.length) show(types[0]);
 }

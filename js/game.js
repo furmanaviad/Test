@@ -25,6 +25,38 @@ export function fallbackClue(card, failed) {
   return FALLBACK_ORDER.find(t => have.includes(t)) ?? null;
 }
 
+// Lowercase, accent-free, no punctuation, parentheticals or leading article, so "The Office (US)"
+// and "office" compare equal.
+function normalize(text) {
+  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/\(.*?\)/g, ' ').replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim()
+    .replace(/^(the|a|an) /, '').replace(/ /g, '');
+}
+
+function editDistance(a, b) {
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const row = [i];
+    for (let j = 1; j <= b.length; j++) {
+      row[j] = Math.min(prev[j] + 1, row[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    prev = row;
+  }
+  return prev[b.length];
+}
+
+// Does the typed `guess` name this card? Allows a small typo (none for very short titles),
+// and any of the card's `aliases`.
+export function titleMatches(guess, card) {
+  const g = normalize(guess);
+  if (!g) return false;
+  return [card.title, ...(card.aliases ?? [])].some(name => {
+    const n = normalize(name);
+    const tolerance = n.length <= 4 ? 0 : n.length <= 9 ? 1 : 2;
+    return Math.abs(n.length - g.length) <= tolerance && editDistance(g, n) <= tolerance;
+  });
+}
+
 // `index` is the gap the card is placed in: 0 = before the first card, n = after the last.
 // A year equal to a neighbour's year counts as correct.
 export function isCorrectPlacement(timeline, index, year) {
