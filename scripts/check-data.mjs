@@ -1,5 +1,7 @@
 // Validates data/titles.json. Pass --online to also check YouTube IDs and Wikipedia pages.
 import { readFile, access } from 'node:fs/promises';
+import { searchUrl, pickPreview } from '../js/itunes.js';
+import { normalize } from '../js/game.js';
 
 const root = new URL('../', import.meta.url);
 const titles = JSON.parse(await readFile(new URL('data/titles.json', root), 'utf8'));
@@ -17,15 +19,26 @@ for (const t of titles) {
   if (t.aliases && !(Array.isArray(t.aliases) && t.aliases.every(a => typeof a === 'string'))) errors.push(`${at} aliases must be an array of strings`);
   const c = t.clues ?? {};
   if (!c.quote && !c.plot && !c.trailer && !c.theme && !c.still && !t.wiki) errors.push(`${at} has no clues`);
+  if (c.theme && !c.theme.youtubeId && !c.theme.search) errors.push(`${at} theme needs youtubeId or search`);
   for (const k of ['trailer', 'theme']) {
-    if (c[k] && !c[k].youtubeId) errors.push(`${at} ${k} needs youtubeId`);
+    if (c[k] && !c[k].search && !c[k].youtubeId) errors.push(`${at} ${k} needs youtubeId`);
     if (c[k]?.end && c[k].end <= (c[k].start ?? 0)) errors.push(`${at} ${k} end must be after start`);
   }
   if (c.still?.image) await access(new URL(c.still.image, root)).catch(() => errors.push(`${at} missing image ${c.still.image}`));
 
   if (online) {
+    if (c.theme?.search) {
+      const r = await fetch(searchUrl(c.theme));
+      const hit = r.ok ? pickPreview((await r.json()).results, c.theme) : null;
+      if (!hit) errors.push(`${at} theme search "${c.theme.search}" found no Apple preview (${r.status})`);
+      else {
+        const wanted = normalize(c.theme.artist ?? '');
+        const note = wanted && !normalize(hit.artistName).includes(wanted) ? `  (artist differs from "${c.theme.artist}")` : '';
+        console.log(`${at} theme -> ${hit.trackName} / ${hit.artistName}${note}`);
+      }
+    }
     for (const k of ['trailer', 'theme']) {
-      if (!c[k]) continue;
+      if (!c[k]?.youtubeId) continue;
       const r = await fetch(`https://www.youtube.com/oembed?format=json&url=https://www.youtube.com/watch?v=${c[k].youtubeId}`);
       if (!r.ok) errors.push(`${at} ${k} YouTube id ${c[k].youtubeId} not found (${r.status})`);
     }

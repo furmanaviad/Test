@@ -1,3 +1,5 @@
+import { lookupPreview } from './itunes.js';
+
 export const CLUE_LABELS = {
   trailer: 'Trailer',
   theme: 'Theme music',
@@ -113,6 +115,76 @@ function videoClue(card, type, { onError } = {}) {
   };
 }
 
+// ---------- theme music from an Apple Music preview ----------
+
+// Same tap-to-play contract as video: the lookup runs up front and the tap calls play() directly.
+function audioClue(card, { onError } = {}) {
+  const clue = card.clues.theme;
+  const box = el('div', 'clue clue-theme');
+  const button = el('button', 'play big', 'Loading…');
+  button.disabled = true;
+  const credit = el('div', 'credit', '♪ Apple Music preview');
+  box.append(el('div', 'cover cover-full'), button, credit);
+
+  const audio = new Audio();
+  audio.preload = 'auto';
+  let dead = false;
+  let playing = false;
+  let ended = false;
+  let hit = null;
+
+  const fail = reason => {
+    if (dead) return;
+    button.disabled = true;
+    button.className = 'play big';
+    button.textContent = 'Preview unavailable';
+    onError?.(reason);
+  };
+  const setButton = () => {
+    button.className = `play ${playing ? 'mini' : 'big'}`;
+    button.textContent = playing ? '❚❚' : ended ? '↻ Replay' : '▶ Tap to play';
+  };
+
+  button.addEventListener('click', () => {
+    if (playing) { audio.pause(); return; }
+    if (ended) audio.currentTime = 0;
+    audio.play().catch(() => fail('play'));
+  });
+  audio.addEventListener('play', () => { playing = true; ended = false; setButton(); });
+  audio.addEventListener('pause', () => { playing = false; setButton(); });
+  audio.addEventListener('ended', () => { playing = false; ended = true; setButton(); });
+  audio.addEventListener('error', () => fail('audio'));
+
+  lookupPreview(clue).then(result => {
+    if (dead) return;
+    hit = result;
+    audio.src = result.previewUrl;
+    // Apple asks for previews to sit next to a link back to the store.
+    if (result.trackViewUrl) {
+      const link = el('a', '', '♪ Apple Music preview');
+      link.href = result.trackViewUrl;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      credit.replaceChildren(link);
+    }
+    button.disabled = false;
+    setButton();
+  }).catch(() => fail('lookup'));
+
+  return {
+    node: box,
+    pause() { audio.pause(); },
+    // Shown after the reveal, so it can name the song without giving the answer away.
+    info: () => hit && { text: `${hit.trackName} – ${hit.artistName}`, url: hit.trackViewUrl },
+    destroy() {
+      dead = true;
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.load();
+    },
+  };
+}
+
 // ---------- other clue types ----------
 
 const wikiCache = new Map();
@@ -151,7 +223,7 @@ function textClue(text, tag) {
 
 const RENDERERS = {
   trailer: (card, opts) => videoClue(card, 'trailer', opts),
-  theme: (card, opts) => videoClue(card, 'theme', opts),
+  theme: (card, opts) => (card.clues.theme.youtubeId ? videoClue(card, 'theme', opts) : audioClue(card, opts)),
   still: card => stillClue(card),
   quote: card => textClue(`“${card.clues.quote}”`, 'blockquote'),
   plot: card => textClue(card.clues.plot, 'p'),
@@ -171,6 +243,11 @@ export function renderClue(container, card, type, opts) {
 
 export function pauseClue() {
   current?.pause?.();
+}
+
+// What the current clue was, e.g. the song a theme preview came from. Only call after the reveal.
+export function clueInfo() {
+  return current?.info?.() ?? null;
 }
 
 export function stopClue() {

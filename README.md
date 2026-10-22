@@ -26,15 +26,23 @@ node scripts/check-data.mjs --online  # also check YouTube IDs and Wikipedia pos
 | Quote, Plot hint | `clues.quote`, `clues.plot` | Text only. Every title has at least a plot. |
 | Still frame | `clues.still.image`, otherwise the title's `wiki` poster | Starts zoomed in or blurred and slowly reveals. The Wikipedia lookup needs internet access. |
 | Trailer | `clues.trailer` | YouTube clip. Bars cover the top and bottom of the video to hide on-screen titles. |
-| Theme music | `clues.theme` | YouTube audio with the video fully covered. |
+| Theme music | `clues.theme` | A 30-second Apple Music preview found with `{ "search", "artist" }` (no Apple Music app or account needed), or a YouTube clip if `youtubeId` is given. After the reveal the game names the song it played. |
 
 The setup screen lets you use one clue type every turn, a random one, or let the player choose, which is useful for comparing how each feels.
 
-**Trailer and theme clues have no videos yet.** Add them per title in `data/titles.json`:
+**Theme clues** for 11 titles use Apple previews:
+
+```json
+"theme": { "search": "I'll Be There for You", "artist": "The Rembrandts" }
+```
+
+The phone looks the song up when the clue opens. The result by the named artist is preferred, so a cover doesn't win; if none matches, the first result with a preview is used, and after the reveal the game shows which song played so bad matches are easy to spot. `node scripts/check-data.mjs --online` prints the match for each title from a machine with internet access.
+
+**Trailer clues have no videos yet.** Add them per title in `data/titles.json`:
 
 ```json
 "trailer": { "youtubeId": "VIDEO_ID", "start": 30, "end": 60 },
-"theme":   { "youtubeId": "VIDEO_ID", "start": 0 }
+"theme":   { "youtubeId": "VIDEO_ID", "start": 0 }   // alternative to "search"
 ```
 
 Run `node scripts/check-data.mjs --online` afterwards: it fails on IDs that are removed or have embedding disabled (YouTube's oEmbed answers 401/404 for those). Cards only offer the clue types they have.

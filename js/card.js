@@ -1,6 +1,6 @@
 import { h, typeLabel } from './dom.js';
 import { availableClues, fallbackClue, titleMatches } from './game.js';
-import { renderClue, pauseClue, CLUE_LABELS } from './clues.js';
+import { renderClue, pauseClue, clueInfo, CLUE_LABELS } from './clues.js';
 
 // Opened by scanning a printed card's QR code. The timeline lives on the physical cards.
 export function viewCard(app, titles, id) {
@@ -32,6 +32,8 @@ export function viewCard(app, titles, id) {
   const result = h('p', { class: 'hint', hidden: true });
   const reveal = h('button', { class: 'primary', onclick: () => {
     pauseClue();
+    const info = clueInfo();
+    if (info) answer.append(h('p', { class: 'hint' }, '♪ ', info.url ? h('a', { href: info.url, target: '_blank', rel: 'noopener' }, info.text) : info.text));
     const typed = guess.value.trim();
     if (typed) {
       result.hidden = false;

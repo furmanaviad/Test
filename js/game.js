@@ -27,7 +27,7 @@ export function fallbackClue(card, failed) {
 
 // Lowercase, accent-free, no punctuation, parentheticals or leading article, so "The Office (US)"
 // and "office" compare equal.
-function normalize(text) {
+export function normalize(text) {
   return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
     .replace(/\(.*?\)/g, ' ').replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim()
     .replace(/^(the|a|an) /, '').replace(/ /g, '');

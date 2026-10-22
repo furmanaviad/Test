@@ -1,6 +1,6 @@
 import { h, loadTitles, typeLabel } from './dom.js';
 import { createGame, place, nextTurn, skipCard, awardToken, availableClues, fallbackClue, titleMatches } from './game.js';
-import { renderClue, pauseClue, stopClue, CLUE_LABELS } from './clues.js';
+import { renderClue, pauseClue, stopClue, clueInfo, CLUE_LABELS } from './clues.js';
 import { viewCard } from './card.js';
 
 const app = document.getElementById('app');
@@ -107,6 +107,7 @@ function showTurn(game) {
 
 function showReveal(game, { correct, card }, guess = '') {
   pauseClue();
+  const info = clueInfo();
   const player = game.players[game.current];
   const named = titleMatches(guess, card);
   if (named) awardToken(game);
@@ -121,6 +122,7 @@ function showReveal(game, { correct, card }, guess = '') {
       h('h3', {}, card.title), h('p', { class: 'year' }, String(card.year)), h('p', { class: 'kind' }, typeLabel(card))),
     h('p', {}, correct ? `${player.name} keeps the card.` : 'The card is discarded.'),
     guessNote,
+    info && h('p', { class: 'hint' }, '♪ ', info.url ? h('a', { href: info.url, target: '_blank', rel: 'noopener' }, info.text) : info.text),
     gotToken,
     h('button', { class: 'primary', onclick: () => { nextTurn(game); showTurn(game); } },
       game.winner !== null ? 'See result' : 'Next player')));

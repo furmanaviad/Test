@@ -71,3 +71,5 @@ button.secondary { width: 100%; margin-top: 8px; }
 
 .guess { margin-top: 8px; }
 .named { color: var(--ok); font-weight: 600; margin: 8px 0; }
+.credit { position: absolute; left: 12px; bottom: 8px; z-index: 2; font-size: .75rem; color: #fff; opacity: .85; }
+.credit a { color: inherit; }
